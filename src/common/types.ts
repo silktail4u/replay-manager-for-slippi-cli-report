@@ -76,6 +76,14 @@ export type GameScore = {
   entrant1Score: number;
   entrant2Score: number;
 };
+export type SlpGame = {
+  url:string,
+  p1Id:number,
+  p2Id:number,
+  p1Score:number,
+  p2Score:number,
+  eventId:number
+}
 
 export type Set = {
   id: Id;

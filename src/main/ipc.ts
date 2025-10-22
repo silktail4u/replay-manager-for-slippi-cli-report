@@ -39,7 +39,7 @@ import {
   Set,
   StartggSet,
   Event,
-  SlpGame,
+  SlpGame as SlpSinglesGame,
   StartggGame,
   StartggGameSelection
 } from '../common/types';
@@ -116,6 +116,7 @@ import {
 import { assertInteger, assertString } from '../common/asserts';
 import { resolveHtmlPath } from './util';
 import Settings from '../renderer/Settings';
+import { match } from 'assert';
 
 type ReplayDir = {
   dir: string;
@@ -187,16 +188,20 @@ export default function setupIPCs(
     failedFiles?: string[];
   } = { status: 'idle' };
 
-    async function handleProtocolReportSlpUrls(matchObjects: SlpGame[]) {
-    const tempDir = path.join(app.getPath('temp'), app.getName());
+    async function handleProtocolReportSinglesSlpUrls(matchObjects: SlpSinglesGame[]) {
+    const matchname = matchObjects[0].p1Id+"vs"+matchObjects[0].p2Id+"@"+matchObjects[0].eventId;
+    const tempDir = path.join(app.getPath('temp'), app.getName(),matchname);
     await mkdir(tempDir, { recursive: true });
     const failedFiles: string[] = [];
-    var slpUrls = matchObjects.map(obj => obj.url)
+    let slpUrls = matchObjects.map(obj => obj.url)
     const total = slpUrls.length;
     let completed = 0;
+    let gNum = 1;
     await Promise.all(
+      
       slpUrls.map(async (url) => {
-        const fileName = path.basename(new URL(url).pathname);
+        const fileName = path.basename(matchname+"game"+gNum+".slp");
+        gNum++;
         const dest = path.join(tempDir, fileName);
         try {
           await downloadFile(url, dest);
@@ -243,23 +248,26 @@ export default function setupIPCs(
       slpDownloadStatus = { status: 'success' };
       if (mainWindow)
         mainWindow.webContents.send('slp-download-status', slpDownloadStatus);
-      var matches:StartggSet = {
+      
+      const ev:Event | undefined = getCurrentTournament()?.events.find(e=>e.id == matchObjects[0].eventId); //currently eventID is stored on RFID card TODO: eventID stored in electron session?(this would allow vanity rfid's to be usable at multiple events but lower the barrier to making a faux rfid)
+      const playernames:Id[] = [matchObjects[0].p1Id,matchObjects[0].p2Id];
+      const curset = tryGetPendingSetById(playernames,ev);
+      const matches:StartggSet = {
         setId: '',
         winnerId: '',
         isDQ: false,
         gameData: []
       }
+      const replays = await getReplaysInDir(tempDir);
+      let matchnum = 1
       matchObjects.forEach((match)=>{
-        var playernames:Id[] = [match.p1Id,match.p2Id];
-        var ev:Event | undefined = getCurrentTournament()?.events.find(e=>e.id == match.eventId); 
-        var curset = tryGetPendingSetById(playernames,ev);
+        let replay: Replay = replays.replays[matchnum - 1]
           
         if(curset)
         {
-          
-          var replay:Replay;
-          getReplayFromLink(match.url).then((replayobj)=>{replay = replayobj.replays[0];
-          var sl: StartggGameSelection[] = []
+          matches.setId = curset.id;
+          //make game selection array for players 
+            var sl: StartggGameSelection[] = []
           replay.players.forEach(p=>sl.push({
             characterId: p.externalCharacterId,
             entrantId: sl.length==0?match.p1Id:match.p2Id
@@ -267,15 +275,17 @@ export default function setupIPCs(
           var game: StartggGame = {
             entrant1Score: match.p1Score,
             entrant2Score: match.p2Score,
-            gameNum: 0,
-            selections: [],
+            gameNum: matchnum,
+            selections: sl,
             winnerId: match.p1Score>match.p2Score?match.p1Id:match.p2Id
           }
-        });
-        }
+          matches.gameData.push(game);
         
+        }
+        matchnum++;
       });
-      reportSet(sggApiKey,)//sggApiKey
+      matches.winnerId = matches.gameData.filter(m=>m.winnerId == matchObjects[0].p1Id).length > (matches.gameData.length / 2)?matchObjects[0].p1Id:matchObjects[0].p2Id; 
+      reportSet(sggApiKey,matches)//sggApiKey
     }
   }
 
@@ -342,8 +352,8 @@ export default function setupIPCs(
     handleProtocolLoadSlpUrls(slpUrls);
   });
   
-  eventEmitter.on('protocol-report-singles-slp-urls', (matchObjects: SlpGame[]) => {
-    handleProtocolReportSlpUrls(matchObjects);
+  eventEmitter.on('protocol-report-singles-slp-urls', (matchObjects: SlpSinglesGame[]) => {
+    handleProtocolReportSinglesSlpUrls(matchObjects);
   });
   const onInsert = (e: any) => {
     if (knownUsbs.has(e.data.key)) {

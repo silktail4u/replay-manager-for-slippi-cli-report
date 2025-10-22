@@ -39,7 +39,7 @@ import {
   Set,
   StartggSet,
   Event,
-  SlpGame as SlpSinglesGame,
+  SlpSinglesGame,
   StartggGame,
   StartggGameSelection
 } from '../common/types';
@@ -249,7 +249,7 @@ export default function setupIPCs(
       if (mainWindow)
         mainWindow.webContents.send('slp-download-status', slpDownloadStatus);
       
-      const ev:Event | undefined = getCurrentTournament()?.events.find(e=>e.id == matchObjects[0].eventId); //currently eventID is stored on RFID card TODO: eventID stored in electron session?(this would allow vanity rfid's to be usable at multiple events but lower the barrier to making a faux rfid)
+      const ev:Event | undefined = getCurrentTournament()?.events.find(e=>e.id == matchObjects[0].eventId);
       const playernames:Id[] = [matchObjects[0].p1Id,matchObjects[0].p2Id];
       const curset = tryGetPendingSetById(playernames,ev);
       const matches:StartggSet = {
@@ -285,7 +285,7 @@ export default function setupIPCs(
         matchnum++;
       });
       matches.winnerId = matches.gameData.filter(m=>m.winnerId == matchObjects[0].p1Id).length > (matches.gameData.length / 2)?matchObjects[0].p1Id:matchObjects[0].p2Id; 
-      reportSet(sggApiKey,matches)//sggApiKey
+      reportSet(sggApiKey,matches)
     }
   }
 
@@ -1637,7 +1637,7 @@ export default function setupIPCs(
     });
   });
 }
-function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):Set|null {
+export function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):Set|null {
   event?.phases.forEach(phase => {
       phase.phaseGroups.forEach(phaseGroup => {
         return phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)&&playerIds.includes(set.entrant2Id))

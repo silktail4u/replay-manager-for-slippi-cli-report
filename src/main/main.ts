@@ -14,8 +14,10 @@ import { EventEmitter } from 'events';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import setupIPCs from './ipc';
-import { SlpGame } from '../common/types';
-
+import { Id, SlpSinglesGame } from '../common/types';
+import express from 'express';
+import { tryGetPendingSetById } from '../main/ipc'
+import { getCurrentTournament } from './startgg';
 let mainWindow: BrowserWindow | null = null;
 let enforcerWindow: BrowserWindow | null = null;
 const eventEmitter = new EventEmitter();
@@ -39,25 +41,9 @@ async function handleProtocolUrl(url: string) {
       }
     }
     if (parsed.hostname === 'report-singles') {
-      const paths = parsed.searchParams.get('path');
-      if (paths) {
-        const matchObjects: SlpGame[] = [];
-        var eventId = 0
-        if(parsed.searchParams.get('eventId')!=null) {
-         eventId = Number.parseInt(parsed.searchParams.get('eventId') as string)
-        }
-        for (var index = 0; index < paths.length;index+=5){
-        matchObjects.push({
-          'url': paths[index],
-          'p1Id': Number.parseInt(paths[index + 1]),
-          'p2Id': Number.parseInt(paths[index + 2]),
-          'p1Score': Number.parseInt(paths[index + 3]),
-          'p2Score': Number.parseInt(paths[index + 4]),
-          'eventId': eventId
-        });
-        }
-        
-        
+      const matches = parsed.searchParams.get('matches');
+      if (matches) {
+        const matchObjects: SlpSinglesGame[] = matches.split(';').map(s=>JSON.parse(s));
         eventEmitter.emit('protocol-report-singles-slp-urls', matchObjects);
       }
     }
@@ -202,3 +188,21 @@ app
     });
   })
   .catch(console.log);
+const startServer = () => {
+  const serverApp = express();
+
+  serverApp.get('/singlescheck/', (req, res) => {
+
+    if(!req.query.event||!req.query.players)
+      return 400;
+    const players = req.query.players;
+    const ev = getCurrentTournament()?.events.find(e=>e.id == Number.parseInt(req.query.event as string))
+    // Ensure it's always an array of Ids
+    const array = (Array.isArray(players) ? players : players ? [players] : []).map(p=>p as Id);
+    res.json({ pending: (tryGetPendingSetById(array,ev)==null) });
+  });
+
+  serverApp.listen(3005, () => {
+    console.log('Electron Web Server listening on http://localhost:3005');
+  });
+};

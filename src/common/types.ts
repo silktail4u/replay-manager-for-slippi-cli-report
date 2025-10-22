@@ -76,7 +76,7 @@ export type GameScore = {
   entrant1Score: number;
   entrant2Score: number;
 };
-export type SlpGame = {
+export type SlpSinglesGame = {
   url:string,
   p1Id:number,
   p2Id:number,

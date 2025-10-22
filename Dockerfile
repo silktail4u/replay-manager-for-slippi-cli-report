@@ -8,11 +8,9 @@ WORKDIR /usr/src/app
 # Copy package.json and package-lock.json first to leverage caching
 COPY package*.json ./
 
-RUN npm install
-
 # Copy the rest of the application code
 COPY . .
-
+RUN npm install
 # Build the application (if needed)
 RUN npm run build
 

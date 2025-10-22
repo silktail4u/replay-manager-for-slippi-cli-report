@@ -14,6 +14,7 @@ import { EventEmitter } from 'events';
 import MenuBuilder from './menu';
 import { resolveHtmlPath } from './util';
 import setupIPCs from './ipc';
+import { SlpGame } from '../common/types';
 
 let mainWindow: BrowserWindow | null = null;
 let enforcerWindow: BrowserWindow | null = null;
@@ -35,6 +36,29 @@ async function handleProtocolUrl(url: string) {
           mainWindow.focus();
         }
         eventEmitter.emit('protocol-load-slp-urls', slpUrls);
+      }
+    }
+    if (parsed.hostname === 'report') {
+      const paths = parsed.searchParams.get('path');
+      if (paths) {
+        const matchObjects: SlpGame[] = [];
+        var eventId = 0
+        if(parsed.searchParams.get('eventId')!=null) {
+         eventId = Number.parseInt(parsed.searchParams.get('eventId') as string)
+        }
+        for (var index = 0; index < paths.length;index+=5){
+        matchObjects.push({
+          'url': paths[index],
+          'p1Id': Number.parseInt(paths[index + 1]),
+          'p2Id': Number.parseInt(paths[index + 2]),
+          'p1Score': Number.parseInt(paths[index + 3]),
+          'p2Score': Number.parseInt(paths[index + 4]),
+          'eventId': eventId
+        });
+        }
+        
+        
+        eventEmitter.emit('protocol-report-slp-urls', matchObjects);
       }
     }
   } catch (e) {

@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  replay-manager:
+    build: .
+    container_name: replay-manager
+    working_dir: /usr/src/app
+    volumes:
+      - .:/usr/src/app
+    environment:
+      - NODE_ENV=production
+      # - API_KEY=your_api_key  # Add if needed
+    command: npm run start

@@ -38,6 +38,9 @@ import {
   ReportSettings,
   Set,
   StartggSet,
+  Event,
+  SlpGame,
+  StartggGame
 } from '../common/types';
 import {
   getEvent,
@@ -59,7 +62,7 @@ import {
   assignStation,
   getPoolsByWave,
 } from './startgg';
-import { getReplaysInDir, writeReplays } from './replay';
+import { getReplayFromLink, getReplaysInDir, writeReplays } from './replay';
 import {
   getChallongeTournament,
   getChallongeTournaments,
@@ -182,6 +185,93 @@ export default function setupIPCs(
     failedFiles?: string[];
   } = { status: 'idle' };
 
+    async function handleProtocolReportSlpUrls(matchObjects: SlpGame[]) {
+    const tempDir = path.join(app.getPath('temp'), app.getName());
+    await mkdir(tempDir, { recursive: true });
+    const failedFiles: string[] = [];
+    var slpUrls = matchObjects.map(obj => obj.url)
+    const total = slpUrls.length;
+    let completed = 0;
+    await Promise.all(
+      slpUrls.map(async (url) => {
+        const fileName = path.basename(new URL(url).pathname);
+        const dest = path.join(tempDir, fileName);
+        try {
+          await downloadFile(url, dest);
+        } catch (err) {
+          // Delete partial files
+          try {
+            await unlink(dest);
+          } catch (unlinkErr) {
+            // ignore
+          }
+          failedFiles.push(url);
+        } finally {
+          completed += 1;
+          slpDownloadStatus = {
+            status: 'downloading',
+            slpUrls,
+            progress: Math.round((completed / total) * 100),
+            currentFile: fileName,
+          };
+          if (mainWindow) {
+            mainWindow.webContents.send(
+              'slp-download-status',
+              slpDownloadStatus,
+            );
+          }
+        }
+      }),
+    );
+    // Emit 100% progress after last file
+    slpDownloadStatus = {
+      status: 'downloading',
+      slpUrls,
+      progress: 100,
+      currentFile: '',
+    };
+    if (mainWindow) {
+      mainWindow.webContents.send('slp-download-status', slpDownloadStatus);
+    }
+    if (failedFiles.length > 0) {
+      slpDownloadStatus = { status: 'error', failedFiles };
+      if (mainWindow)
+        mainWindow.webContents.send('slp-download-status', slpDownloadStatus);
+    } else {
+      slpDownloadStatus = { status: 'success' };
+      if (mainWindow)
+        mainWindow.webContents.send('slp-download-status', slpDownloadStatus);
+      var matches:StartggSet = {
+        setId: '',
+        winnerId: '',
+        isDQ: false,
+        gameData: []
+      }
+      matchObjects.forEach((match)=>{
+        var playernames:Id[] = [match.p1Id,match.p2Id];
+        var ev:Event | undefined = getCurrentTournament()?.events.find(e=>e.id == match.eventId); 
+        var curset = tryGetPendingSetById(playernames,ev);
+          
+        if(curset)
+        {
+          
+          var replays:Replay[]; 
+          getReplayFromLink(match.url).then((replayobj)=>{replays.push(replayobj.replays[0]);});
+          var game: StartggGame = {
+            entrant1Score: match.p1Score,
+            entrant2Score: match.p2Score,
+            gameNum: 0,
+            selections: [],
+            winnerId: match.p1Score>match.p2Score?match.p1Id:match.p2Id
+          }
+          
+        }
+        
+      });
+      
+    }
+  }
+
   async function handleProtocolLoadSlpUrls(slpUrls: string[]) {
     const tempDir = path.join(app.getPath('temp'), app.getName());
     await mkdir(tempDir, { recursive: true });
@@ -244,7 +334,10 @@ export default function setupIPCs(
   eventEmitter.on('protocol-load-slp-urls', (slpUrls: string[]) => {
     handleProtocolLoadSlpUrls(slpUrls);
   });
-
+  
+  eventEmitter.on('protocol-report-slp-urls', (matchObjects: SlpGame[]) => {
+    handleProtocolReportSlpUrls(matchObjects);
+  });
   const onInsert = (e: any) => {
     if (knownUsbs.has(e.data.key)) {
       return;
@@ -1527,3 +1620,12 @@ export default function setupIPCs(
     });
   });
 }
+function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):Set|null {
+  event?.phases.forEach(phase => {
+      phase.phaseGroups.forEach(phaseGroup => {
+        return phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)&&playerIds.includes(set.entrant2Id))
+      });
+    });
+    return null
+}
+

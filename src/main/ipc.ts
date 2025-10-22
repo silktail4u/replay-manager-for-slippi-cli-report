@@ -40,7 +40,8 @@ import {
   StartggSet,
   Event,
   SlpGame,
-  StartggGame
+  StartggGame,
+  StartggGameSelection
 } from '../common/types';
 import {
   getEvent,
@@ -114,6 +115,7 @@ import {
 } from './host';
 import { assertInteger, assertString } from '../common/asserts';
 import { resolveHtmlPath } from './util';
+import Settings from '../renderer/Settings';
 
 type ReplayDir = {
   dir: string;
@@ -255,8 +257,13 @@ export default function setupIPCs(
         if(curset)
         {
           
-          var replays:Replay[]; 
-          getReplayFromLink(match.url).then((replayobj)=>{replays.push(replayobj.replays[0]);});
+          var replay:Replay;
+          getReplayFromLink(match.url).then((replayobj)=>{replay = replayobj.replays[0];
+          var sl: StartggGameSelection[] = []
+          replay.players.forEach(p=>sl.push({
+            characterId: p.externalCharacterId,
+            entrantId: sl.length==0?match.p1Id:match.p2Id
+          }));
           var game: StartggGame = {
             entrant1Score: match.p1Score,
             entrant2Score: match.p2Score,
@@ -264,11 +271,11 @@ export default function setupIPCs(
             selections: [],
             winnerId: match.p1Score>match.p2Score?match.p1Id:match.p2Id
           }
-          
+        });
         }
         
       });
-      
+      reportSet(sggApiKey,)//sggApiKey
     }
   }
 
@@ -335,7 +342,7 @@ export default function setupIPCs(
     handleProtocolLoadSlpUrls(slpUrls);
   });
   
-  eventEmitter.on('protocol-report-slp-urls', (matchObjects: SlpGame[]) => {
+  eventEmitter.on('protocol-report-singles-slp-urls', (matchObjects: SlpGame[]) => {
     handleProtocolReportSlpUrls(matchObjects);
   });
   const onInsert = (e: any) => {

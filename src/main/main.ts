@@ -38,7 +38,7 @@ async function handleProtocolUrl(url: string) {
         eventEmitter.emit('protocol-load-slp-urls', slpUrls);
       }
     }
-    if (parsed.hostname === 'report') {
+    if (parsed.hostname === 'report-singles') {
       const paths = parsed.searchParams.get('path');
       if (paths) {
         const matchObjects: SlpGame[] = [];
@@ -58,7 +58,7 @@ async function handleProtocolUrl(url: string) {
         }
         
         
-        eventEmitter.emit('protocol-report-slp-urls', matchObjects);
+        eventEmitter.emit('protocol-report-singles-slp-urls', matchObjects);
       }
     }
   } catch (e) {

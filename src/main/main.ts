@@ -197,9 +197,14 @@ const startServer = () => {
       return 400;
     const players = req.query.players;
     const ev = getCurrentTournament()?.events.find(e=>e.id == Number.parseInt(req.query.event as string))
+    
     // Ensure it's always an array of Ids
     const array = (Array.isArray(players) ? players : players ? [players] : []).map(p=>p as Id);
-    res.json({ pending: (tryGetPendingSetById(array,ev)==null) });
+    const s = tryGetPendingSetById(array,ev)
+    { pending: (s==null)
+      GFD: s?.round 
+    }
+    res.json();
   });
 
   serverApp.listen(3005, () => {

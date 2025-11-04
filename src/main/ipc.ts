@@ -41,7 +41,10 @@ import {
   Event,
   SlpSinglesGame,
   StartggGame,
-  StartggGameSelection
+  StartggGameSelection,
+  PhaseGroup,
+  State,
+  Participant
 } from '../common/types';
 import {
   getEvent,
@@ -63,7 +66,7 @@ import {
   assignStation,
   getPoolsByWave,
 } from './startgg';
-import { getReplayFromLink, getReplaysInDir, writeReplays } from './replay';
+import { getReplaysInDir, writeReplays } from './replay';
 import {
   getChallongeTournament,
   getChallongeTournaments,
@@ -200,7 +203,7 @@ export default function setupIPCs(
     await Promise.all(
       
       slpUrls.map(async (url) => {
-        const fileName = path.basename(matchname+"game"+gNum+".slp");
+        const fileName = path.basename(matchname+"_game_"+gNum+".slp");
         gNum++;
         const dest = path.join(tempDir, fileName);
         try {
@@ -1640,7 +1643,98 @@ export default function setupIPCs(
 export function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):Set|null {
   event?.phases.forEach(phase => {
       phase.phaseGroups.forEach(phaseGroup => {
-        return phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)&&playerIds.includes(set.entrant2Id))
+      if(phaseGroup?.bracketType == 7)
+      {
+        let participants = phaseGroup?.entrants.find(en=>en.participants.find(part=>playerIds.find(pid=>pid==part.id)))?.participants.filter(part=>playerIds.find(pid=>pid==part.id));
+        if(participants!=undefined)
+          {
+            let s:Set = {
+              id: 0,
+              state: State.PENDING,
+              round: 0,
+              fullRoundText: playerIds[0] + "vs" +playerIds[1]+"@"+event+"-in group-"+phaseGroup.name,
+              winnerId: null,
+              entrant1Id: playerIds[0],
+              entrant1Participants: [participants.find(par => par.id == playerIds[0]) as Participant],
+              entrant1Score: null,
+              entrant2Id: playerIds[1],
+              entrant2Participants: [participants.find(par => par.id == playerIds[1]) as Participant],
+              entrant2Score: null,
+              gameScores: [],
+              stream: null,
+              station: null,
+              ordinal: null, // can be null for start.gg non-DE and challonge swiss
+              wasReported: false,
+              updatedAtMs: 0,
+              completedAtMs: 0
+            };
+            return s;
+          }
+          else {
+            return null;
+          }
+      }
+      else if(phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)!=undefined&&playerIds.includes(set.entrant2Id))){
+        return phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)&&playerIds.includes(set.entrant2Id));
+       }
+      });
+    });
+    return null
+}
+
+function getBracketProgress(
+  totalPlayers: number,
+  completedGames: number,
+  pendingGames: number
+) {
+  const totalGames = totalPlayers - 1;
+  const totalRounds = Math.ceil(Math.log2(totalPlayers));
+  const knownGames = completedGames + pendingGames;
+
+  // Compute games per round (handles non-power-of-two brackets)
+  const gamesPerRound: number[] = [];
+  let playersInRound = totalPlayers;
+  for (let r = 0; r < totalRounds; r++) {
+    const gamesThisRound = Math.floor(playersInRound / 2);
+    gamesPerRound.push(gamesThisRound);
+    playersInRound = Math.ceil(playersInRound / 2);
+  }
+
+  // Find current round
+  let cumulative = 0;
+  let currentRound = totalRounds;
+  for (let i = 0; i < gamesPerRound.length; i++) {
+    cumulative += gamesPerRound[i];
+    if (knownGames <= cumulative) {
+      currentRound = i + 1;
+      break;
+    }
+  }
+
+  const roundsRemaining = Math.max(totalRounds - currentRound, 0);
+  const progressToFinals = Math.min(knownGames / totalGames, 1);
+
+  return {
+    totalRounds,
+    currentRound,
+    roundsRemaining,
+    progressToFinals,
+  };
+}
+
+// 🔍 Use it to detect if a set should be a long set min place = 2/4/8/16/32 for top 2/4/8/16/32
+function isLongSet(totalPlayers: number, completedGames: number,minplace: number) {
+  const playersRemaining = totalPlayers - completedGames;
+  return playersRemaining <= minplace;
+}
+
+
+export function tryIsPlayerSetLong(playerIds: Id[],event: Event | undefined,minplace:number):PhaseGroup|null {
+event?.phases.forEach(phase => {
+      phase.phaseGroups.forEach(phaseGroup => {
+       if(phaseGroup.sets.pendingSets.find(set => playerIds.includes(set.entrant1Id)!=undefined&&playerIds.includes(set.entrant2Id))){
+        return isLongSet(phaseGroup.entrants.length,phaseGroup.sets.completedSets.length,minplace)
+       }
       });
     });
     return null

@@ -160,6 +160,7 @@ const createWindow = async () => {
 app
   .whenReady()
   .then(() => {
+    startServer();
     createWindow();
 
     // macOS: handle protocol URLs

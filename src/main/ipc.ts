@@ -1645,9 +1645,10 @@ export function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):
       phase.phaseGroups.forEach(phaseGroup => {
       if(phaseGroup?.bracketType == 7)
       {
-        let participants = phaseGroup?.entrants.find(en=>en.participants.find(part=>playerIds.find(pid=>pid==part.id)))?.participants.filter(part=>playerIds.find(pid=>pid==part.id));
+        let participants = phaseGroup?.entrants.filter(en=>en.participants.find(part=>playerIds.find(pid=>pid==part.id)))?.flatMap(en=>en.participants.find(part=>playerIds.find(pid=>pid==part.id)));
         if(participants!=undefined)
-          {
+        if(participants[0]!=undefined)        
+        {
             let s:Set = {
               id: 0,
               state: State.PENDING,
@@ -1655,10 +1656,10 @@ export function tryGetPendingSetById(playerIds: Id[], event: Event | undefined):
               fullRoundText: playerIds[0] + "vs" +playerIds[1]+"@"+event+"-in group-"+phaseGroup.name,
               winnerId: null,
               entrant1Id: playerIds[0],
-              entrant1Participants: [participants.find(par => par.id == playerIds[0]) as Participant],
+              entrant1Participants: [participants.find(par => par?.id == playerIds[0]) as Participant],
               entrant1Score: null,
               entrant2Id: playerIds[1],
-              entrant2Participants: [participants.find(par => par.id == playerIds[1]) as Participant],
+              entrant2Participants: [participants.find(par => par?.id == playerIds[1]) as Participant],
               entrant2Score: null,
               gameScores: [],
               stream: null,
